@@ -1,0 +1,7 @@
+[project]
+name = "dark-doxer-bot"
+version = "1.0.0"
+description = "Telegram Bot"
+
+[build]
+builder = "nixpacks"
