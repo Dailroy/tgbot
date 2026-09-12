@@ -19,6 +19,7 @@ CHANNELS = [
 
 PROMOS_FILE = "D:\\telegram_bot\\promos.json"
 USERS_FILE = "D:\\telegram_bot\\users.json"
+USERNAMES_FILE = "D:\\telegram_bot\\usernames.json"
 
 GIFS = {
     "welcome": "https://media.giphy.com/media/26ufdipQqU2hNA4Gc/giphy.gif",
@@ -151,13 +152,14 @@ def sub_keyboard():
 
 
 def main_menu_kb():
+    buy_link = "https://t.me/qituh?text=" + quote("Здравствуйте хочу купить випку")
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💣 Снос", callback_data="takedown"),
          InlineKeyboardButton("🔍 Доксинг", callback_data="doxing")],
         [InlineKeyboardButton("⚡ DDoS Атака", callback_data="ddos"),
          InlineKeyboardButton("📞 Бомбер", callback_data="bomber")],
         [InlineKeyboardButton("⭐ ВИП", callback_data="vip"),
-         InlineKeyboardButton("🎟 Промокоды", callback_data="promo")]
+         InlineKeyboardButton("💳 Купить VIP", url=buy_link)]
     ])
 
 
@@ -224,7 +226,12 @@ h1{{text-align:center;font-size:28px;margin-bottom:10px;text-shadow:0 0 20px #00
 # ─── START ─────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    if user.username:
+        usernames = load_json(USERNAMES_FILE)
+        usernames[user.username.lower()] = user_id
+        save_json(USERNAMES_FILE, usernames)
     if is_subscribed(context, user_id):
         await send_gif(
             update.message.chat, "welcome",
@@ -257,7 +264,10 @@ async def sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     idx = int(query.data.split("_")[1])
     context.user_data[f"sub_{user_id}_{idx}"] = True
-    await query.answer("✅ Отмечено!")
+    try:
+        await query.answer("✅ Отмечено!")
+    except Exception:
+        pass
     all_done = all(context.user_data.get(f"sub_{user_id}_{i}", False) for i in range(len(CHANNELS)))
     if all_done:
         context.user_data[f"sub_{user_id}"] = True
@@ -278,41 +288,68 @@ async def sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         done = sum(1 for i in range(len(CHANNELS)) if context.user_data.get(f"sub_{user_id}_{i}", False))
-        await query.answer(f"✅ {done}/{len(CHANNELS)} каналов подтверждено. Подпишись на остальные!", show_alert=True)
+        try:
+            await query.answer(f"✅ {done}/{len(CHANNELS)} каналов подтверждено. Подпишись на остальные!", show_alert=True)
+        except Exception:
+            pass
 
 
 # ─── BUTTONS ───────────────────────────────────────────
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     data = query.data
     chat = update.effective_chat
+    user = update.effective_user
+    if user.username:
+        usernames = load_json(USERNAMES_FILE)
+        usernames[user.username.lower()] = user.id
+        save_json(USERNAMES_FILE, usernames)
 
     if data.startswith("sub_"):
         await sub_handler(update, context)
         return
 
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     user_id = update.effective_user.id
     if not is_subscribed(context, user_id):
-        await query.answer("❌ Сначала подпишись на каналы!", show_alert=True)
+        try:
+            await query.answer("❌ Сначала подпишись на каналы!", show_alert=True)
+        except Exception:
+            pass
         return
 
+    active, _ = get_user_vip(user_id)
+
     if data == "takedown":
+        if not active:
+            await handle_no_vip(chat)
+            return
         await handle_takedown_menu(chat)
     elif data in ("takedown_users", "takedown_group", "takedown_channel", "takedown_bot"):
+        if not active:
+            await handle_no_vip(chat)
+            return
         labels = {"takedown_users": "👤 Пользователя", "takedown_group": "👥 Группу",
                   "takedown_channel": "📢 Канал", "takedown_bot": "🤖 Бота"}
         await start_takedown(chat, context, labels[data])
     elif data == "doxing":
+        if not active:
+            await handle_no_vip(chat)
+            return
         await start_doxing(chat, context)
     elif data in ("ddos", "bomber"):
+        if not active:
+            await handle_no_vip(chat)
+            return
         labels = {"ddos": "⚡ DDoS АТАКА", "bomber": "📞 БОМБЕР"}
         await handle_premium(chat, labels[data])
     elif data == "vip":
         await handle_vip(chat, update.effective_user.id)
-    elif data == "promo":
-        await start_promo(chat, context)
     elif data.startswith("vipbuy_"):
         await handle_vip_buy(query, data)
     elif data.startswith("dl_"):
@@ -410,6 +447,10 @@ async def start_takedown(chat, context, target_type):
 
 async def run_takedown(chat, target, context):
     takedown_type = context.user_data.get("takedown_type", "Цель")
+    total = random.randint(500, 700)
+    failed = random.randint(30, 80)
+    sent = total - failed
+
     msg = await send_gif(
         chat, "takedown",
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -418,17 +459,19 @@ async def run_takedown(chat, target, context):
         f"   🎯 *Цель:* `{target}`\n\n"
         f"   ⚡ Отправка жалоб...\n\n"
         f"   `[■□□□□□□□□□] 10%`\n"
-        f"   📝 Жалоба #1 отправлена..."
+        f"   📝 Жалоба #1 из {total}..."
     )
-    complaints = [
-        ("`[■■■□□□□□□□] 30%`", "📝 Жалоба #3 — Нарушение правил"),
-        ("`[■■■■■□□□□□] 50%`", "📝 Жалоба #5 — Спам и мошенничество"),
-        ("`[■■■■■■■□□□] 70%`", "📝 Жалоба #7 — Преследование"),
-        ("`[■■■■■■■■■□] 90%`", "📝 Жалоба #9 — Угрозы безопасности"),
-        ("`[■■■■■■■■■■] 100%`", "✅ Все жалобы отправлены!"),
+    bars = [
+        (15, "`[■■□□□□□□□□] 15%`", f"📝 Жалоба #{int(total*0.15)} — Спам"),
+        (30, "`[■■■■□□□□□□] 30%`", f"📝 Жалоба #{int(total*0.30)} — Нарушение правил"),
+        (45, "`[■■■■■■□□□□] 45%`", f"📝 Жалоба #{int(total*0.45)} — Мошенничество"),
+        (60, "`[■■■■■■■■□□] 60%`", f"📝 Жалоба #{int(total*0.60)} — Преследование"),
+        (75, "`[■■■■■■■■■□] 75%`", f"📝 Жалоба #{int(total*0.75)} — Угрозы"),
+        (90, "`[■■■■■■■■■■] 90%`", f"📝 Жалоба #{int(total*0.90)} — Финал..."),
+        (100, "`[■■■■■■■■■■] 100%`", f"✅ Отправлено {sent} жалоб из {total}!"),
     ]
-    for bar, stage in complaints:
-        await asyncio.sleep(1.3)
+    for bar_pct, bar, stage in bars:
+        await asyncio.sleep(random.uniform(1.0, 2.0))
         try:
             await msg.edit_caption(
                 caption=(
@@ -459,8 +502,9 @@ async def run_takedown(chat, target, context):
         f"   🎯 *Цель:* `{target}`\n"
         f"   📋 *Тип:* {takedown_type}\n\n"
         f"   ✅ *Статус:* Успешно\n"
-        f"   📝 *Жалоб:* 10/10\n"
-        f"   ⏱ *Время:* {random.randint(3,12)}с\n\n"
+        f"   📝 *Жалоб:* {sent}/{total}\n"
+        f"   ❌ *Ошибок:* {failed}\n"
+        f"   ⏱ *Время:* {random.randint(30,120)}с\n\n"
         f"   🔔 Результат будет рассмотрен\n"
         f"   в течение 24-72 часов.\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -620,13 +664,9 @@ async def handle_vip(chat, user_id):
             reply_markup=keyboard
         )
     else:
-        owner_link = f"https://t.me/{OWNER}?text={quote('Привет! Хочу купить VIP')}"
+        buy_link = "https://t.me/qituh?text=" + quote("Здравствуйте хочу купить випку")
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🥉 1 День — 15 ⭐", callback_data="vipbuy_1"),
-             InlineKeyboardButton("🥈 7 Дней — 25 ⭐", callback_data="vipbuy_7")],
-            [InlineKeyboardButton("🥇 30 Дней — 35 ⭐", callback_data="vipbuy_30"),
-             InlineKeyboardButton("💎 1 Год — 100 ⭐", callback_data="vipbuy_365")],
-            [InlineKeyboardButton("💳 Купить VIP", url=owner_link)],
+            [InlineKeyboardButton("💳 Купить VIP", url=buy_link)],
             [InlineKeyboardButton("◀️ Назад", callback_data="back")]
         ])
         await send_gif(
@@ -641,7 +681,7 @@ async def handle_vip(chat, user_id):
             "   • ⚡ DDoS — все протоколы\n"
             "   • 📞 Бомбер — без лимитов\n\n"
             "   ─────────────────────────\n\n"
-            "   💰 *Тарифы (Telegram Stars):*\n\n"
+            "   💰 *Тарифы:*\n\n"
             "   🥉 1 День ............. *15 ⭐*\n"
             "   🥈 7 Дней ............. *25 ⭐*\n"
             "   🥇 30 Дней ............ *35 ⭐*\n"
@@ -676,7 +716,12 @@ async def handle_vip_buy(query, data):
 # ─── TEXT HANDLER ──────────────────────────────────────
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    if user.username:
+        usernames = load_json(USERNAMES_FILE)
+        usernames[user.username.lower()] = user_id
+        save_json(USERNAMES_FILE, usernames)
     if not is_subscribed(context, user_id):
         await update.message.chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -689,42 +734,93 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if context.user_data.get("awaiting_promo"):
-        context.user_data["awaiting_promo"] = False
-        code = update.message.text.strip()
-        ok, msg = await activate_promo(user_id, code)
-        if ok:
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("◀️ Меню", callback_data="back")]
-            ])
-            await update.message.chat.send_message(
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "       🎟 *ПРОМОКОД АКТИВИРОВАН*\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"   ✅ *Код:* `{code}`\n"
-                f"   ⏱ *Длительность:* {msg}\n\n"
-                "   VIP-подписка активирована!\n\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-                reply_markup=keyboard, parse_mode="Markdown"
-            )
-        else:
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("◀️ Меню", callback_data="back")]
-            ])
-            await update.message.chat.send_message(
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                "       ❌ *ОШИБКА*\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"   {msg}\n\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-                reply_markup=keyboard, parse_mode="Markdown"
-            )
-    elif context.user_data.get("awaiting_dox"):
+    if context.user_data.get("awaiting_dox"):
         context.user_data["awaiting_dox"] = False
         await run_doxing(update.message.chat, update.message.text.strip(), context)
     elif context.user_data.get("awaiting_takedown"):
         context.user_data["awaiting_takedown"] = False
         await run_takedown(update.message.chat, update.message.text.strip(), context)
+
+
+# ─── NO VIP ───────────────────────────────────────────
+
+async def handle_no_vip(chat):
+    buy_link = "https://t.me/qituh?text=" + quote("Здравствуйте хочу купить випку")
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💳 Купить VIP", url=buy_link)],
+        [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+    ])
+    await send_gif(
+        chat, "denied",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "       🔒 *ТРЕБУЕТСЯ VIP*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "   Эта функция доступна\n"
+        "   только для VIP-пользователей.\n\n"
+        "   💎 Купи VIP для полного доступа.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        reply_markup=keyboard
+    )
+
+
+# ─── ADMIN: /iaoplatil ────────────────────────────────
+
+OWNER_ID = 8287486718
+
+async def iaoplatil(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("Использование: /iaoplatil <user_id или @username> [дни]")
+        return
+
+    target_arg = context.args[0]
+    days = 30
+    if len(context.args) > 1:
+        try:
+            days = int(context.args[1])
+        except ValueError:
+            pass
+
+    if target_arg.startswith("@"):
+        username = target_arg[1:].lower()
+        usernames = load_json(USERNAMES_FILE)
+        target_id = usernames.get(username)
+        if not target_id:
+            await update.message.reply_text(f"Пользователь @{username} не найден. Он должен сначала написать /start боту.")
+            return
+    else:
+        try:
+            target_id = int(target_arg)
+        except ValueError:
+            await update.message.reply_text("Неверный user_id или username")
+            return
+
+    seconds = days * 86400
+    set_user_vip(target_id, seconds)
+
+    try:
+        await context.bot.send_message(
+            chat_id=target_id,
+            text=(
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "  VIP ПОДПИСКА АКТИВИРОВАНА\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"  Тебе выдан VIP на {days} дней.\n\n"
+                "  Доступные функции:\n"
+                "  - Снос\n"
+                "  - Доксинг\n"
+                "  - DDoS\n"
+                "  - Бомбер\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            )
+        )
+        sent_ok = True
+    except Exception:
+        sent_ok = False
+
+    status = "и уведомлен" if sent_ok else "(не удалось уведомить)"
+    await update.message.reply_text(f"VIP выдан пользователю {target_id} на {days} дней {status}")
 
 
 # ─── MAIN ──────────────────────────────────────────────
@@ -733,6 +829,7 @@ def main():
     generate_promos()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("iaoplatil", iaoplatil))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     print("☠ DARK DOKER BOT запущен!")
