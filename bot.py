@@ -11,24 +11,15 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 
 TOKEN = "8815886549:AAFBBHdJa-2P5dvxPqBiaFQxoSJ2DYZC758"
 OWNER = "qituh"
+OWNER_ID = 8287486718
 
 CHANNELS = [
     {"id": "@APKSOFTERA", "link": "https://t.me/APKSOFTERA"},
     {"id": "@jdkdkdoskcjfj", "link": "https://t.me/jdkdkdoskcjfj"},
 ]
 
-PROMOS_FILE = "D:\\telegram_bot\\promos.json"
-USERS_FILE = "D:\\telegram_bot\\users.json"
-USERNAMES_FILE = "D:\\telegram_bot\\usernames.json"
-
-GIFS = {
-    "welcome": "https://media.giphy.com/media/26ufdipQqU2hNA4Gc/giphy.gif",
-    "hack": "https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif",
-    "loading": "https://media.giphy.com/media/VbnUQpnihPSIgIXuZv/giphy.gif",
-    "denied": "https://media.giphy.com/media/l0MYt5jPRMQifVjbG/giphy.gif",
-    "vip": "https://media.giphy.com/media/3o6gE8l2n7H2p6ZXMs/giphy.gif",
-    "takedown": "https://media.giphy.com/media/3o7aD2GcO5E7W2W3nG/giphy.gif",
-}
+USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
+USERNAMES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "usernames.json")
 
 FIRST_NAMES = [
     "Александр","Дмитрий","Максим","Сергей","Андрей","Алексей","Артём","Илья",
@@ -52,15 +43,18 @@ CITIES = [
 COUNTRIES = ["Россия","Украина","Беларусь","Казахстан"]
 CARRIER = {"MTS": "🟡", "Билайн": "⚫", "МегаФон": "🟢", "Теле2": "🔵"}
 
+USER_STATE = {}
 
-# ─── DATA persistence ──────────────────────────────────
 
 def load_json(path, default=None):
     if default is None:
         default = {}
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
     return default
 
 
@@ -69,39 +63,12 @@ def save_json(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def generate_promos():
-    if os.path.exists(PROMOS_FILE):
-        return
-    durations = {
-        "1d": 86400,
-        "3d": 259200,
-        "7d": 604800,
-        "14d": 1209600,
-        "30d": 2592000,
-    }
-    promos = {}
-    for _ in range(10):
-        code = "VIP-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        promos[code] = {"duration": "1d", "seconds": durations["1d"], "used": False}
-    for _ in range(10):
-        code = "VIP-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        promos[code] = {"duration": "3d", "seconds": durations["3d"], "used": False}
-    for _ in range(10):
-        code = "VIP-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        promos[code] = {"duration": "7d", "seconds": durations["7d"], "used": False}
-    for _ in range(10):
-        code = "VIP-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        promos[code] = {"duration": "14d", "seconds": durations["14d"], "used": False}
-    for _ in range(10):
-        code = "VIP-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        promos[code] = {"duration": "30d", "seconds": durations["30d"], "used": False}
-    save_json(PROMOS_FILE, promos)
-
-
 def get_user_vip(user_id):
     users = load_json(USERS_FILE)
     u = users.get(str(user_id), {})
     vip_until = u.get("vip_until", 0)
+    if vip_until == 9999999999:
+        return True, "навсегда"
     if vip_until and time.time() < vip_until:
         remaining = vip_until - time.time()
         days = int(remaining // 86400)
@@ -116,27 +83,16 @@ def set_user_vip(user_id, seconds):
     uid = str(user_id)
     if uid not in users:
         users[uid] = {}
-    current = users[uid].get("vip_until", 0)
-    now = time.time()
-    if current > now:
-        users[uid]["vip_until"] = current + seconds
+    if seconds >= 315360000:
+        users[uid]["vip_until"] = 9999999999
     else:
-        users[uid]["vip_until"] = now + seconds
+        current = users[uid].get("vip_until", 0)
+        now = time.time()
+        if current > now and current != 9999999999:
+            users[uid]["vip_until"] = current + seconds
+        else:
+            users[uid]["vip_until"] = now + seconds
     save_json(USERS_FILE, users)
-
-
-# ─── HELPERS ───────────────────────────────────────────
-
-async def send_gif(chat, key, caption, reply_markup=None, parse_mode="Markdown"):
-    try:
-        return await chat.send_animation(
-            animation=GIFS[key], caption=caption,
-            reply_markup=reply_markup, parse_mode=parse_mode
-        )
-    except Exception:
-        return await chat.send_message(
-            text=caption, reply_markup=reply_markup, parse_mode=parse_mode
-        )
 
 
 def is_subscribed(context, user_id):
@@ -185,7 +141,7 @@ def gen_data(target):
 
 def make_html(d):
     return f"""<!DOCTYPE html>
-<html lang="ru"><head><meta charset="UTF-8"><title>Dox — {d['target']}</title>
+<html lang="ru"><head><meta charset="UTF-8"><title>Dox - {d['target']}</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;padding:20px}}
@@ -199,27 +155,27 @@ h1{{text-align:center;font-size:28px;margin-bottom:10px;text-shadow:0 0 20px #00
 .l{{color:#00aa2a}}.v{{color:#fff;font-weight:bold}}
 .f{{text-align:center;margin-top:20px;color:#00aa2a;font-size:12px}}
 </style></head><body><div class="c">
-<h1>&#9760; DOX REPORT &#9760;</h1>
+<h1>DOX REPORT</h1>
 <p class="sub">target: {d['target']}</p>
-<div class="s"><h2>&#128100; PERSONAL</h2>
+<div class="s"><h2>PERSONAL</h2>
 <div class="r"><span class="l">Имя:</span><span class="v">{d['first']}</span></div>
 <div class="r"><span class="l">Фамилия:</span><span class="v">{d['last']}</span></div>
 <div class="r"><span class="l">ДР:</span><span class="v">{d['birthday']} ({d['age']} лет)</span></div>
 <div class="r"><span class="l">Паспорт:</span><span class="v">{d['passport']}</span></div>
 <div class="r"><span class="l">ИНН:</span><span class="v">{d['inn']}</span></div></div>
-<div class="s"><h2>&#128205; LOCATION</h2>
+<div class="s"><h2>LOCATION</h2>
 <div class="r"><span class="l">Страна:</span><span class="v">{d['country']}</span></div>
 <div class="r"><span class="l">Город:</span><span class="v">{d['city']}</span></div>
 <div class="r"><span class="l">Адрес:</span><span class="v">{d['street']}, д.{d['house']}, кв.{d['flat']}</span></div></div>
-<div class="s"><h2>&#128241; CONTACTS</h2>
+<div class="s"><h2>CONTACTS</h2>
 <div class="r"><span class="l">Тел:</span><span class="v">{d['phone']}</span></div>
 <div class="r"><span class="l">Оператор:</span><span class="v">{CARRIER[d['carrier']]} {d['carrier']}</span></div>
 <div class="r"><span class="l">Email:</span><span class="v">{d['email']}</span></div>
 <div class="r"><span class="l">Username:</span><span class="v">@{d['user']}</span></div></div>
-<div class="s"><h2>&#127760; NETWORK</h2>
+<div class="s"><h2>NETWORK</h2>
 <div class="r"><span class="l">IP:</span><span class="v">{d['ip']}</span></div>
 <div class="r"><span class="l">MAC:</span><span class="v">{d['mac']}</span></div></div>
-<div class="f">&#9760; DARK DOXER &#9760;</div>
+<div class="f">DARK DOXER</div>
 </div></body></html>"""
 
 
@@ -233,10 +189,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames[user.username.lower()] = user_id
         save_json(USERNAMES_FILE, usernames)
     if is_subscribed(context, user_id):
-        await send_gif(
-            update.message.chat, "welcome",
+        await update.message.chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "      ☠  *D A R K  D O X E R*  ☠\n"
+            "      ☠  D A R K  D O X E R  ☠\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "   Добро пожаловать в тёмную зону.\n"
             "   Выбери действие из меню ↓\n\n"
@@ -244,10 +199,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu_kb()
         )
     else:
-        await send_gif(
-            update.message.chat, "welcome",
+        await update.message.chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "      ☠  *D A R K  D O X E R*  ☠\n"
+            "      ☠  D A R K  D O X E R  ☠\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "   Для использования бота\n"
             "   подпишись на каналы и нажми\n"
@@ -275,10 +229,9 @@ async def sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.delete()
         except Exception:
             pass
-        await send_gif(
-            query.message.chat, "welcome",
+        await query.message.chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "      ☠  *D A R K  D O X E R*  ☠\n"
+            "      ☠  D A R K  D O X E R  ☠\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "   ✅ Подписка подтверждена!\n"
             "   Добро пожаловать в тёмную зону.\n"
@@ -289,7 +242,7 @@ async def sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         done = sum(1 for i in range(len(CHANNELS)) if context.user_data.get(f"sub_{user_id}_{i}", False))
         try:
-            await query.answer(f"✅ {done}/{len(CHANNELS)} каналов подтверждено. Подпишись на остальные!", show_alert=True)
+            await query.answer(f"✅ {done}/{len(CHANNELS)} каналов подтверждено!", show_alert=True)
         except Exception:
             pass
 
@@ -315,7 +268,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
 
-    user_id = update.effective_user.id
+    user_id = user.id
     if not is_subscribed(context, user_id):
         try:
             await query.answer("❌ Сначала подпишись на каналы!", show_alert=True)
@@ -334,26 +287,84 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not active:
             await handle_no_vip(chat)
             return
-        labels = {"takedown_users": "👤 Пользователя", "takedown_group": "👥 Группу",
-                  "takedown_channel": "📢 Канал", "takedown_bot": "🤖 Бота"}
-        await start_takedown(chat, context, labels[data])
+        labels = {"takedown_users": "Пользователя", "takedown_group": "Группу",
+                  "takedown_channel": "Канал", "takedown_bot": "Бота"}
+        USER_STATE[user_id] = {"type": "awaiting_takedown", "takedown_type": labels[data]}
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Назад", callback_data="back_takedown")]
+        ])
+        await chat.send_message(
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"  СНОС {labels[data].upper()}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "  Введи юзернейм или ссылку:\n\n"
+            "  Пример: @username\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            reply_markup=keyboard
+        )
     elif data == "doxing":
         if not active:
             await handle_no_vip(chat)
             return
-        await start_doxing(chat, context)
-    elif data in ("ddos", "bomber"):
+        USER_STATE[user_id] = "awaiting_dox"
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+        ])
+        await chat.send_message(
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  DOXING MODULE\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "  Введи юзернейм или номер телефона:\n\n"
+            "  Пример: @username или +79001234567\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            reply_markup=keyboard
+        )
+    elif data == "ddos":
         if not active:
             await handle_no_vip(chat)
             return
-        labels = {"ddos": "⚡ DDoS АТАКА", "bomber": "📞 БОМБЕР"}
-        await handle_premium(chat, labels[data])
+        USER_STATE[user_id] = "awaiting_ddos"
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+        ])
+        await chat.send_message(
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  DDoS АТАКА\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "  Введи сайт для атаки:\n\n"
+            "  Пример: example.com\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            reply_markup=keyboard
+        )
+    elif data == "bomber":
+        if not active:
+            await handle_no_vip(chat)
+            return
+        USER_STATE[user_id] = "awaiting_bomber"
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+        ])
+        await chat.send_message(
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  БОМБЕР\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "  Введи номер телефона:\n\n"
+            "  Пример: +79001234567\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            reply_markup=keyboard
+        )
     elif data == "vip":
-        await handle_vip(chat, update.effective_user.id)
-    elif data.startswith("vipbuy_"):
-        await handle_vip_buy(query, data)
+        await handle_vip(chat, user_id)
     elif data.startswith("dl_"):
-        await handle_download(query, context)
+        d = USER_STATE.get(f"dox_{user_id}") or gen_data("unknown")
+        html = make_html(d)
+        f = io.BytesIO(html.encode("utf-8"))
+        f.name = f"doxing_{d['target']}.html"
+        await query.message.reply_document(document=f, caption="Doxing Report")
+        try:
+            await query.answer("Файл отправлен!")
+        except Exception:
+            pass
     elif data == "back":
         try:
             await query.message.delete()
@@ -361,11 +372,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         await chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "      ☠  *D A R K  D O X E R*  ☠\n"
+            "      ☠  D A R K  D O X E R  ☠\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "   Выбери действие из меню ↓\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            reply_markup=main_menu_kb(), parse_mode="Markdown"
+            reply_markup=main_menu_kb()
         )
     elif data == "back_takedown":
         try:
@@ -375,291 +386,306 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_takedown_menu(chat)
 
 
-# ─── PROMO CODES ───────────────────────────────────────
+# ─── NO VIP ───────────────────────────────────────────
 
-async def start_promo(chat, context):
-    context.user_data["awaiting_promo"] = True
+async def handle_no_vip(chat):
+    buy_link = "https://t.me/qituh?text=" + quote("Здравствуйте хочу купить випку")
     keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💳 Купить VIP", url=buy_link)],
         [InlineKeyboardButton("◀️ Назад", callback_data="back")]
     ])
     await chat.send_message(
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "       🎟 *ПРОМОКОДЫ*\n"
+        "  ТРЕБУЕТСЯ VIP\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "   Введи промокод для активации\n"
-        "   VIP-подписки:\n\n"
-        "   📌 Формат: `VIP-XXXXXXXX`\n\n"
+        "  Эта функция доступна\n"
+        "  только для VIP-пользователей.\n\n"
+        "  Купи VIP для полного доступа.\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=keyboard, parse_mode="Markdown"
+        reply_markup=keyboard
     )
-
-
-async def activate_promo(user_id, code):
-    promos = load_json(PROMOS_FILE)
-    code = code.strip().upper()
-    if code not in promos:
-        return False, "Промокод не найден!"
-    if promos[code]["used"]:
-        return False, "Этот промокод уже был использован!"
-    promos[code]["used"] = True
-    promos[code]["used_by"] = user_id
-    save_json(PROMOS_FILE, promos)
-    set_user_vip(user_id, promos[code]["seconds"])
-    return True, promos[code]["duration"]
 
 
 # ─── TAKEDOWN ──────────────────────────────────────────
 
 async def handle_takedown_menu(chat):
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("👤 Пользователь (User)", callback_data="takedown_users")],
-        [InlineKeyboardButton("👥 Группа (Group)", callback_data="takedown_group")],
-        [InlineKeyboardButton("📢 Канал (Channel)", callback_data="takedown_channel")],
-        [InlineKeyboardButton("🤖 Бот (Bot)", callback_data="takedown_bot")],
+        [InlineKeyboardButton("👤 Пользователь", callback_data="takedown_users")],
+        [InlineKeyboardButton("👥 Группа", callback_data="takedown_group")],
+        [InlineKeyboardButton("📢 Канал", callback_data="takedown_channel")],
+        [InlineKeyboardButton("🤖 Бот", callback_data="takedown_bot")],
         [InlineKeyboardButton("◀️ Назад", callback_data="back")]
     ])
     await chat.send_message(
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "       💣 *СНОС*\n"
+        "  СНОС\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "   Выбери цель для сноса:\n\n"
+        "  Выбери цель для сноса:\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=keyboard, parse_mode="Markdown"
+        reply_markup=keyboard
     )
 
 
-async def start_takedown(chat, context, target_type):
-    context.user_data["awaiting_takedown"] = True
-    context.user_data["takedown_type"] = target_type
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("◀️ Назад", callback_data="back_takedown")]
-    ])
-    await chat.send_message(
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"       💣 *СНОС {target_type.upper()}*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "   Введи юзернейм или ссылку\n\n"
-        "   📌 Пример: `@username`\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=keyboard, parse_mode="Markdown"
-    )
+async def run_takedown(chat, target, user_id):
+    state = USER_STATE.get(user_id, {})
+    takedown_type = state.get("takedown_type", "Цель") if isinstance(state, dict) else "Цель"
 
-
-async def run_takedown(chat, target, context):
-    takedown_type = context.user_data.get("takedown_type", "Цель")
     total = random.randint(500, 700)
     failed = random.randint(30, 80)
     sent = total - failed
 
-    msg = await send_gif(
-        chat, "takedown",
+    msg = await chat.send_message(
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"       💣 *СНОС {takedown_type.upper()}*\n"
+        f"  СНОС {takedown_type.upper()}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"   🎯 *Цель:* `{target}`\n\n"
-        f"   ⚡ Отправка жалоб...\n\n"
-        f"   `[■□□□□□□□□□] 10%`\n"
-        f"   📝 Жалоба #1 из {total}..."
+        f"  Цель: {target}\n\n"
+        f"  Отправка жалоб...\n\n"
+        f"  [■□□□□□□□□□] 10%\n"
+        f"  Жалоба #1 из {total}..."
     )
+
     bars = [
-        (15, "`[■■□□□□□□□□] 15%`", f"📝 Жалоба #{int(total*0.15)} — Спам"),
-        (30, "`[■■■■□□□□□□] 30%`", f"📝 Жалоба #{int(total*0.30)} — Нарушение правил"),
-        (45, "`[■■■■■■□□□□] 45%`", f"📝 Жалоба #{int(total*0.45)} — Мошенничество"),
-        (60, "`[■■■■■■■■□□] 60%`", f"📝 Жалоба #{int(total*0.60)} — Преследование"),
-        (75, "`[■■■■■■■■■□] 75%`", f"📝 Жалоба #{int(total*0.75)} — Угрозы"),
-        (90, "`[■■■■■■■■■■] 90%`", f"📝 Жалоба #{int(total*0.90)} — Финал..."),
-        (100, "`[■■■■■■■■■■] 100%`", f"✅ Отправлено {sent} жалоб из {total}!"),
+        ("[■■□□□□□□□□] 15%", f"Жалоба #{int(total*0.15)} — Спам"),
+        ("[■■■■□□□□□□] 30%", f"Жалоба #{int(total*0.30)} — Нарушение правил"),
+        ("[■■■■■■□□□□] 45%", f"Жалоба #{int(total*0.45)} — Мошенничество"),
+        ("[■■■■■■■■□□] 60%", f"Жалоба #{int(total*0.60)} — Преследование"),
+        ("[■■■■■■■■■□] 75%", f"Жалоба #{int(total*0.75)} — Угрозы"),
+        ("[■■■■■■■■■■] 90%", f"Жалоба #{int(total*0.90)} — Финал..."),
+        ("[■■■■■■■■■■] 100%", f"Отправлено {sent} жалоб из {total}!"),
     ]
-    for bar_pct, bar, stage in bars:
+
+    for bar, stage in bars:
         await asyncio.sleep(random.uniform(1.0, 2.0))
         try:
-            await msg.edit_caption(
-                caption=(
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"       💣 *СНОС {takedown_type.upper()}*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"   🎯 *Цель:* `{target}`\n\n"
-                    f"   ⚡ Отправка жалоб...\n\n"
-                    f"   {bar}\n"
-                    f"   {stage}"
-                ),
-                parse_mode="Markdown"
+            await msg.edit_text(
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  СНОС {takedown_type.upper()}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"  Цель: {target}\n\n"
+                f"  Отправка жалоб...\n\n"
+                f"  {bar}\n"
+                f"  {stage}"
             )
         except Exception:
             pass
+
     await asyncio.sleep(1.5)
-    try:
-        await msg.delete()
-    except Exception:
-        pass
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("◀️ Меню", callback_data="back")]
     ])
     await chat.send_message(
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"       💣 *СНОС ЗАВЕРШЁН*\n"
+        "  СНОС ЗАВЕРШЁН\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"   🎯 *Цель:* `{target}`\n"
-        f"   📋 *Тип:* {takedown_type}\n\n"
-        f"   ✅ *Статус:* Успешно\n"
-        f"   📝 *Жалоб:* {sent}/{total}\n"
-        f"   ❌ *Ошибок:* {failed}\n"
-        f"   ⏱ *Время:* {random.randint(30,120)}с\n\n"
-        f"   🔔 Результат будет рассмотрен\n"
-        f"   в течение 24-72 часов.\n\n"
+        f"  Цель: {target}\n"
+        f"  Тип: {takedown_type}\n\n"
+        f"  Статус: Успешно\n"
+        f"  Жалоб: {sent}/{total}\n"
+        f"  Ошибок: {failed}\n"
+        f"  Время: {random.randint(30,120)}с\n\n"
+        "  Результат будет рассмотрен\n"
+        "  в течение 24-72 часов.\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=keyboard, parse_mode="Markdown"
+        reply_markup=keyboard
     )
 
 
 # ─── DOXING ────────────────────────────────────────────
 
-async def start_doxing(chat, context):
-    context.user_data["awaiting_dox"] = True
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("◀️ Назад", callback_data="back")]
-    ])
-    await chat.send_message(
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "       🔍 *DOXING MODULE*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "   Введи юзернейм или номер телефона\n"
-        "   того, кого нужно задоксить:\n\n"
-        "   📌 Пример: `@username` или `+79001234567`\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=keyboard, parse_mode="Markdown"
-    )
-
-
-async def run_doxing(chat, target, context):
-    msg = await send_gif(
-        chat, "hack",
+async def run_doxing(chat, target, user_id):
+    msg = await chat.send_message(
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"       🔍 *DOXING MODULE*\n"
+        f"  DOXING MODULE\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"   🎯 *Цель:* `{target}`\n\n"
-        f"   `[■□□□□□□□□□] 10%`\n"
-        f"   🔍 Сканирование баз данных..."
+        f"  Цель: {target}\n\n"
+        f"  [■□□□□□□□□□] 10%\n"
+        f"  Сканирование баз данных..."
     )
     progress = [
-        ("`[■■■□□□□□□□] 30%`", "📡 Перехват пакетов..."),
-        ("`[■■■■■□□□□□] 50%`", "🌐 Трассировка IP..."),
-        ("`[■■■■■■■□□□] 70%`", "🔓 Дешифровка данных..."),
-        ("`[■■■■■■■■■□] 90%`", "📋 Формирование отчёта..."),
-        ("`[■■■■■■■■■■] 100%`", "✅ Данные собраны!"),
+        ("[■■■□□□□□□□] 30%", "Перехват пакетов..."),
+        ("[■■■■■□□□□□] 50%", "Трассировка IP..."),
+        ("[■■■■■■■□□□] 70%", "Дешифровка данных..."),
+        ("[■■■■■■■■■□] 90%", "Формирование отчёта..."),
+        ("[■■■■■■■■■■] 100%", "Данные собраны!"),
     ]
     for bar, stage in progress:
         await asyncio.sleep(1.2)
         try:
-            await msg.edit_caption(
-                caption=(
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"       🔍 *DOXING MODULE*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"   🎯 *Цель:* `{target}`\n\n"
-                    f"   {bar}\n"
-                    f"   {stage}"
-                ),
-                parse_mode="Markdown"
+            await msg.edit_text(
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  DOXING MODULE\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"  Цель: {target}\n\n"
+                f"  {bar}\n"
+                f"  {stage}"
             )
         except Exception:
             pass
     await asyncio.sleep(1.5)
-    try:
-        await msg.delete()
-    except Exception:
-        pass
     d = gen_data(target)
-    context.user_data["dox"] = d
+    USER_STATE[f"dox_{user_id}"] = d
     text = (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "       🔍 *DOX RESULT*\n"
+        "  DOX RESULT\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"   🎯 *Цель:* `{target}`\n\n"
-        f"   👤 *Имя:* {d['first']} {d['last']}\n"
-        f"   🎂 *ДР:* {d['birthday']} ({d['age']} лет)\n"
-        f"   📍 *Страна:* {d['country']}\n"
-        f"   🏙 *Город:* {d['city']}\n"
-        f"   🏠 *Адрес:* {d['street']}, д.{d['house']}, кв.{d['flat']}\n\n"
-        f"   📱 *Телефон:* `{d['phone']}`\n"
-        f"   📡 *Оператор:* {CARRIER[d['carrier']]} {d['carrier']}\n"
-        f"   📧 *Email:* `{d['email']}`\n"
-        f"   👤 *Username:* @{d['user']}\n\n"
-        f"   🌐 *IP:* `{d['ip']}`\n"
-        f"   🔗 *MAC:* `{d['mac']}`\n"
-        f"   🪪 *Паспорт:* `{d['passport']}`\n"
-        f"   🔢 *ИНН:* `{d['inn']}`\n\n"
+        f"  Цель: {target}\n\n"
+        f"  Имя: {d['first']} {d['last']}\n"
+        f"  ДР: {d['birthday']} ({d['age']} лет)\n"
+        f"  Страна: {d['country']}\n"
+        f"  Город: {d['city']}\n"
+        f"  Адрес: {d['street']}, д.{d['house']}, кв.{d['flat']}\n\n"
+        f"  Телефон: {d['phone']}\n"
+        f"  Оператор: {CARRIER[d['carrier']]} {d['carrier']}\n"
+        f"  Email: {d['email']}\n"
+        f"  Username: @{d['user']}\n\n"
+        f"  IP: {d['ip']}\n"
+        f"  MAC: {d['mac']}\n"
+        f"  Паспорт: {d['passport']}\n"
+        f"  ИНН: {d['inn']}\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     )
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📥 Скачать HTML", callback_data="dl_save")],
         [InlineKeyboardButton("◀️ Назад", callback_data="back")]
     ])
-    await chat.send_message(text, reply_markup=keyboard, parse_mode="Markdown")
+    await chat.send_message(text, reply_markup=keyboard)
 
 
-# ─── PREMIUM ───────────────────────────────────────────
+# ─── DDoS ──────────────────────────────────────────────
 
-async def handle_premium(chat, title):
-    msg = await send_gif(chat, "loading", f"🔄 *{title}*\n\n⚙️ Инициализация модуля...")
-    for stage in ["🔄 Загрузка ядра...", "⚙️ Подключение к серверам...",
-                   "📡 Установка соединения...", "🔐 Проверка прав...", "❌ Доступ запрещён!"]:
-        await asyncio.sleep(1.0)
+async def run_ddos(chat, target, user_id):
+    msg = await chat.send_message(
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"  DDoS АТАКА\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"  Цель: {target}\n\n"
+        f"  [■□□□□□□□□□] 10%\n"
+        f"  Инициализация атаки..."
+    )
+    attacks = [
+        ("[■■□□□□□□□□] 15%", "Подключение к ботнету..."),
+        ("[■■■■□□□□□□] 30%", "SYN Flood — отправка пакетов..."),
+        ("[■■■■■■□□□□] 45%", "UDP Flood — массовая отправка..."),
+        ("[■■■■■■■■□□] 60%", "HTTP Flood — запросы к серверу..."),
+        ("[■■■■■■■■■□] 75%", "Slowloris — удержание соединений..."),
+        ("[■■■■■■■■■■] 90%", "Проверка доступности цели..."),
+        ("[■■■■■■■■■■] 100%", "Цель недоступна!"),
+    ]
+    for bar, stage in attacks:
+        await asyncio.sleep(random.uniform(1.0, 2.5))
         try:
-            await msg.edit_caption(caption=f"🔄 *{title}*\n\n{stage}", parse_mode="Markdown")
+            await msg.edit_text(
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  DDoS АТАКА\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"  Цель: {target}\n\n"
+                f"  {bar}\n"
+                f"  {stage}"
+            )
         except Exception:
             pass
     await asyncio.sleep(1.5)
-    try:
-        await msg.delete()
-    except Exception:
-        pass
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⭐ Купить VIP", callback_data="vip")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+        [InlineKeyboardButton("◀️ Меню", callback_data="back")]
     ])
-    await send_gif(
-        chat, "denied",
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"       🔒 *{title}*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"   Функция доступна только для *VIP!*\n\n"
-        f"   💎 Приобрети VIP-подписку\n"
-        f"   для полного доступа.\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    pps = random.randint(50000, 200000)
+    duration = random.randint(60, 300)
+    await chat.send_message(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "  DDoS АТАКА ЗАВЕРШЕНА\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"  Цель: {target}\n\n"
+        f"  Статус: Успешно\n"
+        f"  PPS: {pps:,}\n"
+        f"  Длительность: {duration}с\n"
+        f"  Потоков: {random.randint(100, 500)}\n\n"
+        "  Цель недоступна.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         reply_markup=keyboard
     )
 
 
-async def handle_download(query, context):
-    d = context.user_data.get("dox") or gen_data("unknown")
-    html = make_html(d)
-    f = io.BytesIO(html.encode("utf-8"))
-    f.name = f"doxing_{d['target']}.html"
-    await query.message.reply_document(document=f, caption="📥 Doxing Report")
-    await query.answer("✅ Файл отправлен!")
+# ─── BOMBER ────────────────────────────────────────────
+
+async def run_bomber(chat, target, user_id):
+    services = [
+        "Telegram", "WhatsApp", "Viber", "VK", "Яндекс",
+        "Google", "Amazon", "OZON", "Wildberries", "Сбербанк",
+        "Тинькофф", "Альфа-Банк", "МТС", "Билайн", "МегаФон",
+    ]
+    total = random.randint(50, 150)
+    failed = random.randint(5, 20)
+    sent = total - failed
+
+    msg = await chat.send_message(
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"  БОМБЕР\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"  Цель: {target}\n\n"
+        f"  [■□□□□□□□□□] 10%\n"
+        f"  Отправка SMS на {services[0]}..."
+    )
+    bars = [
+        ("[■■□□□□□□□□] 15%", 15),
+        ("[■■■■□□□□□□] 30%", 30),
+        ("[■■■■■■□□□□] 45%", 45),
+        ("[■■■■■■■■□□] 60%", 60),
+        ("[■■■■■■■■■□] 75%", 75),
+        ("[■■■■■■■■■■] 90%", 90),
+        ("[■■■■■■■■■■] 100%", 100),
+    ]
+    for bar, pct in bars:
+        svc = random.choice(services)
+        count = int(total * pct / 100)
+        await asyncio.sleep(random.uniform(1.0, 2.0))
+        try:
+            await msg.edit_text(
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"  БОМБЕР\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"  Цель: {target}\n\n"
+                f"  {bar}\n"
+                f"  SMS #{count} → {svc}..."
+            )
+        except Exception:
+            pass
+    await asyncio.sleep(1.5)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("◀️ Меню", callback_data="back")]
+    ])
+    await chat.send_message(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "  БОМБЕР ЗАВЕРШЁН\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"  Цель: {target}\n\n"
+        f"  Статус: Успешно\n"
+        f"  Отправлено: {sent}/{total}\n"
+        f"  Ошибок: {failed}\n"
+        f"  Сервисов: {len(services)}\n\n"
+        "  Номер забомблен.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        reply_markup=keyboard
+    )
 
 
 # ─── VIP ───────────────────────────────────────────────
 
 async def handle_vip(chat, user_id):
     active, remaining = get_user_vip(user_id)
-
     if active:
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("◀️ Назад", callback_data="back")]
         ])
-        await send_gif(
-            chat, "vip",
+        await chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "       ⭐ *VIP — АКТИВЕН* ✅\n"
+            "  VIP — АКТИВЕН\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"   💎 *Осталось:* {remaining}\n\n"
-            "   🎯 *Доступные функции:*\n"
-            "   • ☠ Снос — полный доступ\n"
-            "   • 🔍 Доксинг — расширенный\n"
-            "   • ⚡ DDoS — все протоколы\n"
-            "   • 📞 Бомбер — без лимитов\n\n"
+            f"  Осталось: {remaining}\n\n"
+            "  Доступные функции:\n"
+            "  - Снос — полный доступ\n"
+            "  - Доксинг — расширенный\n"
+            "  - DDoS — все протоколы\n"
+            "  - Бомбер — без лимитов\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             reply_markup=keyboard
         )
@@ -669,48 +695,19 @@ async def handle_vip(chat, user_id):
             [InlineKeyboardButton("💳 Купить VIP", url=buy_link)],
             [InlineKeyboardButton("◀️ Назад", callback_data="back")]
         ])
-        await send_gif(
-            chat, "vip",
+        await chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "       ⭐ *VIP ПОДПИСКА*\n"
+            "  VIP ПОДПИСКА\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "   💎 *Получи полный доступ!*\n\n"
-            "   🎯 *Что даёт VIP:*\n"
-            "   • ☠ Снос — полный доступ\n"
-            "   • 🔍 Доксинг — расширенный\n"
-            "   • ⚡ DDoS — все протоколы\n"
-            "   • 📞 Бомбер — без лимитов\n\n"
-            "   ─────────────────────────\n\n"
-            "   💰 *Тарифы:*\n\n"
-            "   🥉 1 День ............. *15 ⭐*\n"
-            "   🥈 7 Дней ............. *25 ⭐*\n"
-            "   🥇 30 Дней ............ *35 ⭐*\n"
-            "   💎 1 Год .............. *100 ⭐*\n\n"
+            "  Получи полный доступ!\n\n"
+            "  Что даёт VIP:\n"
+            "  - Снос — полный доступ\n"
+            "  - Доксинг — расширенный\n"
+            "  - DDoS — все протоколы\n"
+            "  - Бомбер — без лимитов\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             reply_markup=keyboard
         )
-
-
-async def handle_vip_buy(query, data):
-    m = {"vipbuy_1": ("1 День", "15"), "vipbuy_7": ("7 Дней", "25"),
-         "vipbuy_30": ("30 Дней", "35"), "vipbuy_365": ("1 Год", "100")}
-    plan, price = m.get(data, ("?", "?"))
-    owner_link = f"https://t.me/{OWNER}?text={quote('Привет! Хочу купить VIP')}"
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"💳 Оплатить {price} ⭐", url=owner_link)],
-        [InlineKeyboardButton("◀️ Назад к тарифам", callback_data="vip")]
-    ])
-    await query.edit_message_text(
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"       💳 *ОПЛАТА VIP*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"   📦 *Тариф:* {plan}\n"
-        f"   💰 *Стоимость:* {price} ⭐\n\n"
-        f"   Нажми кнопку ниже для перехода\n"
-        f"   к администратору и оплаты.\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=keyboard, parse_mode="Markdown"
-    )
 
 
 # ─── TEXT HANDLER ──────────────────────────────────────
@@ -722,50 +719,39 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = load_json(USERNAMES_FILE)
         usernames[user.username.lower()] = user_id
         save_json(USERNAMES_FILE, usernames)
+
     if not is_subscribed(context, user_id):
         await update.message.chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "      🔒 *ТРЕБУЕТСЯ ПОДПИСКА*\n"
+            "  ТРЕБУЕТСЯ ПОДПИСКА\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "   Подпишись на каналы,\n"
-            "   чтобы продолжить.\n\n"
+            "  Подпишись на каналы,\n"
+            "  чтобы продолжить.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            reply_markup=sub_keyboard(), parse_mode="Markdown"
+            reply_markup=sub_keyboard()
         )
         return
 
-    if context.user_data.get("awaiting_dox"):
-        context.user_data["awaiting_dox"] = False
-        await run_doxing(update.message.chat, update.message.text.strip(), context)
-    elif context.user_data.get("awaiting_takedown"):
-        context.user_data["awaiting_takedown"] = False
-        await run_takedown(update.message.chat, update.message.text.strip(), context)
+    state = USER_STATE.get(user_id)
 
+    if state == "awaiting_dox":
+        USER_STATE.pop(user_id, None)
+        await run_doxing(update.message.chat, update.message.text.strip(), user_id)
 
-# ─── NO VIP ───────────────────────────────────────────
+    elif state == "awaiting_takedown":
+        USER_STATE.pop(user_id, None)
+        await run_takedown(update.message.chat, update.message.text.strip(), user_id)
 
-async def handle_no_vip(chat):
-    buy_link = "https://t.me/qituh?text=" + quote("Здравствуйте хочу купить випку")
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💳 Купить VIP", url=buy_link)],
-        [InlineKeyboardButton("◀️ Назад", callback_data="back")]
-    ])
-    await send_gif(
-        chat, "denied",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "       🔒 *ТРЕБУЕТСЯ VIP*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "   Эта функция доступна\n"
-        "   только для VIP-пользователей.\n\n"
-        "   💎 Купи VIP для полного доступа.\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        reply_markup=keyboard
-    )
+    elif state == "awaiting_ddos":
+        USER_STATE.pop(user_id, None)
+        await run_ddos(update.message.chat, update.message.text.strip(), user_id)
+
+    elif state == "awaiting_bomber":
+        USER_STATE.pop(user_id, None)
+        await run_bomber(update.message.chat, update.message.text.strip(), user_id)
 
 
 # ─── ADMIN: /iaoplatil ────────────────────────────────
-
-OWNER_ID = 8287486718
 
 async def iaoplatil(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
@@ -787,7 +773,7 @@ async def iaoplatil(update: Update, context: ContextTypes.DEFAULT_TYPE):
         usernames = load_json(USERNAMES_FILE)
         target_id = usernames.get(username)
         if not target_id:
-            await update.message.reply_text(f"Пользователь @{username} не найден. Он должен сначала написать /start боту.")
+            await update.message.reply_text(f"@{username} не найден. Он должен сначала написать /start боту.")
             return
     else:
         try:
@@ -826,13 +812,12 @@ async def iaoplatil(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── MAIN ──────────────────────────────────────────────
 
 def main():
-    generate_promos()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("iaoplatil", iaoplatil))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    print("☠ DARK DOKER BOT запущен!")
+    print("BOT STARTED OK")
     app.run_polling()
 
 
