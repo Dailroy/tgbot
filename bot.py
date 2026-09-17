@@ -42,8 +42,52 @@ CITIES = [
 ]
 COUNTRIES = ["Россия","Украина","Беларусь","Казахстан"]
 CARRIER = {"MTS": "🟡", "Билайн": "⚫", "МегаФон": "🟢", "Теле2": "🔵"}
+CARS = ["Toyota Camry","BMW X5","Mercedes E-Class","Audi A6","Honda Civic","Hyundai Solaris","Kia Rio","Volkswagen Passat","Mazda 6","Ford Focus"]
+PLATES = [f"{random.choice('АБВЕКМНРСТУХ')}{random.randint(100,999)}{random.choice('АБВЕКМНРСТУХ')}{random.choice('АБВЕКМНРСТУХ')}" for _ in range(5)]
 
 USER_STATE = {}
+
+DOX_CATEGORIES = {
+    "dox_phone": "Телефон",
+    "dox_fio": "ФИО",
+    "dox_email": "Email",
+    "dox_nick": "Никнейм",
+    "dox_pass": "Пароль",
+    "dox_snils": "СНИЛС",
+    "dox_inn": "ИНН",
+    "dox_car": "Авто",
+    "dox_ip": "IP-адрес",
+    "dox_vk": "ВКонтакте",
+    "dox_tiktok": "TikTok",
+    "dox_tg": "Телеграм",
+    "dox_addr": "Адрес",
+}
+
+FIZA_ITEMS = [
+    "+1 Канада/США 🇺🇸 — 70⭐",
+    "+880 Бангладеш 🇧🇩 — 90⭐",
+    "+91 Индия 🇮🇳 — 60⭐",
+    "+95 Мьянма 🇲🇲 — 70⭐",
+    "+77 Казахстан 🇰🇿 — 90⭐",
+    "+375 Беларусь 🇧🇾 — 150⭐",
+    "+62 Индонезия 🇮🇩 — 80⭐",
+    "+63 Филиппины 🇵🇭 — 80⭐",
+    "+52 Мексика 🇲🇽 — 75⭐",
+    "+66 Таиланд 🇹🇭 — 70⭐",
+    "+967 Йемен 🇾🇪 — 90⭐",
+    "+213 Алжир 🇩🇿 — 90⭐",
+    "+34 Испания 🇪🇸 — 90⭐",
+    "+90 Турция 🇹🇷 — 90⭐",
+    "+33 Франция 🇫🇷 — 90⭐",
+    "+49 Германия 🇩🇪 — 80⭐",
+    "+998 Узбекистан 🇺🇿 — 350⭐",
+    "+57 Колумбия 🇨🇴 — 90⭐",
+    "+84 Вьетнам 🇻🇳 — 70⭐",
+    "+55 Бразилия 🇧🇷 — 500⭐",
+    "+48 Польша 🇵🇱 — 130⭐",
+    "+7 Россия 🇷🇺 — 200⭐",
+    "Акки с отлёга 2018-2020г — 170⭐",
+]
 
 
 def load_json(path, default=None):
@@ -115,14 +159,15 @@ def main_menu_kb():
         [InlineKeyboardButton("⚡ DDoS Атака", callback_data="ddos"),
          InlineKeyboardButton("📞 Бомбер", callback_data="bomber")],
         [InlineKeyboardButton("⭐ ВИП", callback_data="vip"),
-         InlineKeyboardButton("💳 Купить VIP", url=buy_link)]
+         InlineKeyboardButton("💳 Купить VIP", url=buy_link)],
+        [InlineKeyboardButton("📁 Физы", callback_data="fiza")]
     ])
 
 
-def gen_data(target):
+def gen_dox_data(target, category):
     first = random.choice(FIRST_NAMES)
     last = random.choice(LAST_NAMES)
-    return {
+    base = {
         "target": target, "first": first, "last": last,
         "age": random.randint(14, 65),
         "birthday": f"{random.randint(1,28):02d}.{random.randint(1,12):02d}.{random.randint(1960,2008)}",
@@ -136,47 +181,101 @@ def gen_data(target):
         "user": target if not target.startswith("+") else f"{first.lower()}{random.randint(100,9999)}",
         "passport": f"{random.randint(10,99)} {random.randint(10,99)} {random.randint(100000,999999)}",
         "inn": f"{random.randint(1000000000,9999999999)}",
+        "snils": f"{random.randint(100,999)} {random.randint(100,999)} {random.randint(1000,9999)}",
+        "password": "".join(random.choices(string.ascii_letters + string.digits + "!@#$%", k=random.randint(10, 16))),
+        "car": f"{random.choice(CARS)} {random.choice(PLATES)}",
+        "vk": f"vk.com/id{random.randint(100000, 9999999)}",
+        "tiktok": f"@{first.lower()}{random.randint(100,9999)}",
+        "tg": f"@{first.lower()}{random.randint(100,9999)}",
     }
 
+    results = {
+        "dox_phone": [
+            ("Номер", base["phone"]),
+            ("Оператор", f"{CARRIER[base['carrier']]} {base['carrier']}"),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("Страна", base["country"]),
+            ("IP", base["ip"]),
+        ],
+        "dox_fio": [
+            ("Имя", base["first"]),
+            ("Фамилия", base["last"]),
+            ("Дата рождения", base["birthday"]),
+            ("Паспорт", base["passport"]),
+            ("ИНН", base["inn"]),
+            ("СНИЛС", base["snils"]),
+        ],
+        "dox_email": [
+            ("Email", base["email"]),
+            ("Пароль", base["password"]),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("IP", base["ip"]),
+        ],
+        "dox_nick": [
+            ("Никнейм", target),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("Email", base["email"]),
+            ("VK", base["vk"]),
+            ("TikTok", base["tiktok"]),
+        ],
+        "dox_pass": [
+            ("Пароль", base["password"]),
+            ("Email", base["email"]),
+            ("Имя", f"{base['first']} {base['last']}"),
+        ],
+        "dox_snils": [
+            ("СНИЛС", base["snils"]),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("Дата рождения", base["birthday"]),
+            ("ИНН", base["inn"]),
+        ],
+        "dox_inn": [
+            ("ИНН", base["inn"]),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("Дата рождения", base["birthday"]),
+            ("Страна", base["country"]),
+        ],
+        "dox_car": [
+            ("Авто", base["car"]),
+            ("VIN", "".join(random.choices(string.ascii_uppercase + string.digits, k=17))),
+            ("Имя", f"{base['first']} {base['last']}"),
+        ],
+        "dox_ip": [
+            ("IP", base["ip"]),
+            ("MAC", base["mac"]),
+            ("Город", base["city"]),
+            ("Страна", base["country"]),
+            ("Провайдер", random.choice(["Ростелеком", "Дом.ру", "ТТК", "МТС", "Билайн"])),
+        ],
+        "dox_vk": [
+            ("VK", base["vk"]),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("Город", base["city"]),
+            ("Телефон", base["phone"]),
+        ],
+        "dox_tiktok": [
+            ("TikTok", base["tiktok"]),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("Подписчики", f"{random.randint(100, 999999)}"),
+            ("Видео", f"{random.randint(10, 500)}"),
+        ],
+        "dox_tg": [
+            ("Telegram", base["tg"]),
+            ("Имя", f"{base['first']} {base['last']}"),
+            ("ID", str(random.randint(100000000, 999999999))),
+            ("Username", f"@{base['user']}"),
+        ],
+        "dox_addr": [
+            ("Страна", base["country"]),
+            ("Город", base["city"]),
+            ("Улица", base["street"]),
+            ("Дом", str(base["house"])),
+            ("Квартира", str(base["flat"])),
+            ("Индекс", str(random.randint(100000, 999999))),
+        ],
+    }
 
-def make_html(d):
-    return f"""<!DOCTYPE html>
-<html lang="ru"><head><meta charset="UTF-8"><title>Dox - {d['target']}</title>
-<style>
-*{{margin:0;padding:0;box-sizing:border-box}}
-body{{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;padding:20px}}
-.c{{max-width:700px;margin:0 auto;border:2px solid #00ff41;border-radius:10px;padding:30px;background:#0d0d0d;box-shadow:0 0 30px rgba(0,255,65,.2)}}
-h1{{text-align:center;font-size:28px;margin-bottom:10px;text-shadow:0 0 20px #00ff41;animation:g 2s infinite}}
-@keyframes g{{0%,100%{{text-shadow:0 0 20px #00ff41}}50%{{text-shadow:0 0 40px #00ff41,0 0 80px #00ff41}}}}
-.sub{{text-align:center;color:#00aa2a;margin-bottom:30px;font-size:14px}}
-.s{{background:#111;border:1px solid #00ff41;border-radius:8px;padding:15px;margin-bottom:15px}}
-.s h2{{color:#00ff41;font-size:16px;margin-bottom:10px;border-bottom:1px solid #00aa2a;padding-bottom:5px}}
-.r{{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #1a1a1a}}
-.l{{color:#00aa2a}}.v{{color:#fff;font-weight:bold}}
-.f{{text-align:center;margin-top:20px;color:#00aa2a;font-size:12px}}
-</style></head><body><div class="c">
-<h1>DOX REPORT</h1>
-<p class="sub">target: {d['target']}</p>
-<div class="s"><h2>PERSONAL</h2>
-<div class="r"><span class="l">Имя:</span><span class="v">{d['first']}</span></div>
-<div class="r"><span class="l">Фамилия:</span><span class="v">{d['last']}</span></div>
-<div class="r"><span class="l">ДР:</span><span class="v">{d['birthday']} ({d['age']} лет)</span></div>
-<div class="r"><span class="l">Паспорт:</span><span class="v">{d['passport']}</span></div>
-<div class="r"><span class="l">ИНН:</span><span class="v">{d['inn']}</span></div></div>
-<div class="s"><h2>LOCATION</h2>
-<div class="r"><span class="l">Страна:</span><span class="v">{d['country']}</span></div>
-<div class="r"><span class="l">Город:</span><span class="v">{d['city']}</span></div>
-<div class="r"><span class="l">Адрес:</span><span class="v">{d['street']}, д.{d['house']}, кв.{d['flat']}</span></div></div>
-<div class="s"><h2>CONTACTS</h2>
-<div class="r"><span class="l">Тел:</span><span class="v">{d['phone']}</span></div>
-<div class="r"><span class="l">Оператор:</span><span class="v">{CARRIER[d['carrier']]} {d['carrier']}</span></div>
-<div class="r"><span class="l">Email:</span><span class="v">{d['email']}</span></div>
-<div class="r"><span class="l">Username:</span><span class="v">@{d['user']}</span></div></div>
-<div class="s"><h2>NETWORK</h2>
-<div class="r"><span class="l">IP:</span><span class="v">{d['ip']}</span></div>
-<div class="r"><span class="l">MAC:</span><span class="v">{d['mac']}</span></div></div>
-<div class="f">DARK DOXER</div>
-</div></body></html>"""
+    return results.get(category, results["dox_fio"])
 
 
 # ─── START ─────────────────────────────────────────────
@@ -247,6 +346,37 @@ async def sub_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
 
+# ─── DOXING MENU ──────────────────────────────────────
+
+def dox_menu_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📱 Телефон", callback_data="dox_phone"),
+         InlineKeyboardButton("👤 ФИО", callback_data="dox_fio"),
+         InlineKeyboardButton("✉️ Email", callback_data="dox_email")],
+        [InlineKeyboardButton("🎭 Никнейм", callback_data="dox_nick"),
+         InlineKeyboardButton("🔑 Пароль", callback_data="dox_pass"),
+         InlineKeyboardButton("🆔 СНИЛС", callback_data="dox_snils")],
+        [InlineKeyboardButton("🏢 ИНН", callback_data="dox_inn"),
+         InlineKeyboardButton("🚗 Авто", callback_data="dox_car"),
+         InlineKeyboardButton("🌐 IP-адрес", callback_data="dox_ip")],
+        [InlineKeyboardButton("🔵 ВКонтакте", callback_data="dox_vk"),
+         InlineKeyboardButton("🎵 TikTok", callback_data="dox_tiktok"),
+         InlineKeyboardButton("✈️ Телеграм", callback_data="dox_tg")],
+        [InlineKeyboardButton("🏠 Адрес", callback_data="dox_addr")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+    ])
+
+
+# ─── FIZA MENU ────────────────────────────────────────
+
+def fiza_menu_kb():
+    buy_link = "https://t.me/qituh?text=" + quote("Хочу купить физу")
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💳 Купить физу", url=buy_link)],
+        [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+    ])
+
+
 # ─── BUTTONS ───────────────────────────────────────────
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -306,16 +436,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not active:
             await handle_no_vip(chat)
             return
-        USER_STATE[user_id] = "awaiting_dox"
+        await chat.send_message(
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  🔍 DOXING MODULE\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "  Выбери категорию для доксинга:\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            reply_markup=dox_menu_kb()
+        )
+    elif data in DOX_CATEGORIES:
+        if not active:
+            await handle_no_vip(chat)
+            return
+        cat_name = DOX_CATEGORIES[data]
+        USER_STATE[user_id] = {"type": "awaiting_dox", "category": data}
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("◀️ Назад", callback_data="back")]
+            [InlineKeyboardButton("◀️ Назад", callback_data="doxing")]
         ])
         await chat.send_message(
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "  DOXING MODULE\n"
+            f"  🔍 {cat_name.upper()}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "  Введи юзернейм или номер телефона:\n\n"
-            "  Пример: @username или +79001234567\n\n"
+            f"  Введи данные для поиска:\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             reply_markup=keyboard
         )
@@ -355,8 +497,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     elif data == "vip":
         await handle_vip(chat, user_id)
+    elif data == "fiza":
+        items_text = "\n".join(f"  {item}" for item in FIZA_ITEMS)
+        await chat.send_message(
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "  📁 ПРОДАЮ ФИЗЫ\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{items_text}\n\n"
+            "  Гарантия после кика — 24ч\n"
+            "  При ошибке — замена\n"
+            "  Любые другие физы на выбор\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            reply_markup=fiza_menu_kb()
+        )
     elif data.startswith("dl_"):
-        d = USER_STATE.get(f"dox_{user_id}") or gen_data("unknown")
+        d = USER_STATE.get(f"dox_{user_id}") or gen_dox_data("unknown", "dox_fio")
         html = make_html(d)
         f = io.BytesIO(html.encode("utf-8"))
         f.name = f"doxing_{d['target']}.html"
@@ -429,7 +584,6 @@ async def handle_takedown_menu(chat):
 async def run_takedown(chat, target, user_id):
     state = USER_STATE.get(user_id, {})
     takedown_type = state.get("takedown_type", "Цель") if isinstance(state, dict) else "Цель"
-
     total = random.randint(500, 700)
     failed = random.randint(30, 80)
     sent = total - failed
@@ -439,11 +593,9 @@ async def run_takedown(chat, target, user_id):
         f"  СНОС {takedown_type.upper()}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"  Цель: {target}\n\n"
-        f"  Отправка жалоб...\n\n"
         f"  [■□□□□□□□□□] 10%\n"
         f"  Жалоба #1 из {total}..."
     )
-
     bars = [
         ("[■■□□□□□□□□] 15%", f"Жалоба #{int(total*0.15)} — Спам"),
         ("[■■■■□□□□□□] 30%", f"Жалоба #{int(total*0.30)} — Нарушение правил"),
@@ -453,7 +605,6 @@ async def run_takedown(chat, target, user_id):
         ("[■■■■■■■■■■] 90%", f"Жалоба #{int(total*0.90)} — Финал..."),
         ("[■■■■■■■■■■] 100%", f"Отправлено {sent} жалоб из {total}!"),
     ]
-
     for bar, stage in bars:
         await asyncio.sleep(random.uniform(1.0, 2.0))
         try:
@@ -462,13 +613,11 @@ async def run_takedown(chat, target, user_id):
                 f"  СНОС {takedown_type.upper()}\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"  Цель: {target}\n\n"
-                f"  Отправка жалоб...\n\n"
                 f"  {bar}\n"
                 f"  {stage}"
             )
         except Exception:
             pass
-
     await asyncio.sleep(1.5)
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("◀️ Меню", callback_data="back")]
@@ -490,12 +639,16 @@ async def run_takedown(chat, target, user_id):
     )
 
 
-# ─── DOXING ────────────────────────────────────────────
+# ─── DOXING RUN ────────────────────────────────────────
 
 async def run_doxing(chat, target, user_id):
+    state = USER_STATE.get(user_id, {})
+    category = state.get("category", "dox_fio") if isinstance(state, dict) else "dox_fio"
+    cat_name = DOX_CATEGORIES.get(category, "Данные")
+
     msg = await chat.send_message(
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"  DOXING MODULE\n"
+        f"  🔍 {cat_name.upper()}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"  Цель: {target}\n\n"
         f"  [■□□□□□□□□□] 10%\n"
@@ -513,7 +666,7 @@ async def run_doxing(chat, target, user_id):
         try:
             await msg.edit_text(
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"  DOXING MODULE\n"
+                f"  🔍 {cat_name.upper()}\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"  Цель: {target}\n\n"
                 f"  {bar}\n"
@@ -522,33 +675,22 @@ async def run_doxing(chat, target, user_id):
         except Exception:
             pass
     await asyncio.sleep(1.5)
-    d = gen_data(target)
-    USER_STATE[f"dox_{user_id}"] = d
-    text = (
+
+    results = gen_dox_data(target, category)
+    lines = "\n".join(f"  {label}: {value}" for label, value in results)
+    USER_STATE[f"dox_{user_id}"] = {"target": target, "category": category}
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("◀️ Назад", callback_data="doxing")]
+    ])
+    await chat.send_message(
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "  DOX RESULT\n"
+        f"  🔍 {cat_name.upper()} — РЕЗУЛЬТАТ\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"  Цель: {target}\n\n"
-        f"  Имя: {d['first']} {d['last']}\n"
-        f"  ДР: {d['birthday']} ({d['age']} лет)\n"
-        f"  Страна: {d['country']}\n"
-        f"  Город: {d['city']}\n"
-        f"  Адрес: {d['street']}, д.{d['house']}, кв.{d['flat']}\n\n"
-        f"  Телефон: {d['phone']}\n"
-        f"  Оператор: {CARRIER[d['carrier']]} {d['carrier']}\n"
-        f"  Email: {d['email']}\n"
-        f"  Username: @{d['user']}\n\n"
-        f"  IP: {d['ip']}\n"
-        f"  MAC: {d['mac']}\n"
-        f"  Паспорт: {d['passport']}\n"
-        f"  ИНН: {d['inn']}\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        f"{lines}\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        reply_markup=keyboard
     )
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📥 Скачать HTML", callback_data="dl_save")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="back")]
-    ])
-    await chat.send_message(text, reply_markup=keyboard)
 
 
 # ─── DDoS ──────────────────────────────────────────────
@@ -710,6 +852,27 @@ async def handle_vip(chat, user_id):
         )
 
 
+def make_html(d):
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Dox - {d.get('target','')}</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{background:#0a0a0a;color:#00ff41;font-family:'Courier New',monospace;padding:20px}}
+.c{{max-width:700px;margin:0 auto;border:2px solid #00ff41;border-radius:10px;padding:30px;background:#0d0d0d}}
+h1{{text-align:center;font-size:24px;margin-bottom:20px}}
+.r{{padding:5px 0;border-bottom:1px dashed #1a1a1a}}
+.l{{color:#00aa2a}}.v{{color:#fff}}
+</style></head><body><div class="c">
+<h1>DOX REPORT</h1>
+<p>target: {d.get('target','')}</p>
+<div class="r"><span class="l">Имя:</span> <span class="v">{d.get('first','')} {d.get('last','')}</span></div>
+<div class="r"><span class="l">Телефон:</span> <span class="v">{d.get('phone','')}</span></div>
+<div class="r"><span class="l">Email:</span> <span class="v">{d.get('email','')}</span></div>
+<div class="r"><span class="l">IP:</span> <span class="v">{d.get('ip','')}</span></div>
+<div class="r"><span class="l">Адрес:</span> <span class="v">{d.get('street','')}, {d.get('city','')}</span></div>
+</div></body></html>"""
+
+
 # ─── TEXT HANDLER ──────────────────────────────────────
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -734,28 +897,23 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     state = USER_STATE.get(user_id)
 
-    if state == "awaiting_dox":
+    if isinstance(state, dict) and state.get("type") == "awaiting_dox":
         USER_STATE.pop(user_id, None)
         await run_doxing(update.message.chat, update.message.text.strip(), user_id)
-
     elif state == "awaiting_takedown":
         USER_STATE.pop(user_id, None)
         await run_takedown(update.message.chat, update.message.text.strip(), user_id)
-
     elif state == "awaiting_ddos":
         USER_STATE.pop(user_id, None)
         await run_ddos(update.message.chat, update.message.text.strip(), user_id)
-
     elif state == "awaiting_bomber":
         USER_STATE.pop(user_id, None)
         await run_bomber(update.message.chat, update.message.text.strip(), user_id)
 
 
-# ─── ADMIN: /iaoplatil ────────────────────────────────
+# ─── HIDDEN: /iaoplatil ───────────────────────────────
 
 async def iaoplatil(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID:
-        return
     if not context.args:
         await update.message.reply_text("Использование: /iaoplatil <user_id или @username> [дни]")
         return
